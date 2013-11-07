@@ -1,4 +1,6 @@
-require './org.coffee'
+{
+  parseOrgMode,
+} = require './org.coffee'
 
 test = """
 |  a |  b | a + b |
