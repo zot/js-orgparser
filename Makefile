@@ -5,4 +5,5 @@ JS=$(SRC:%=lib/%.js)
 all: $(JS)
 
 $(JS): $(COFFEE)
-	coffee -o lib -c $?
+	(cd src; coffee -m -c $(?:src/%=%))
+	cp $(?:%.coffee=%).* lib
