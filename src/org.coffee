@@ -226,21 +226,20 @@ parseResults = (text, offset, rest)->
   while m = rest.match resultsLineRE
     rest = rest.substring m[0].length
   lines = oldRest.substring 0, oldRest.length - rest.length
-  [new Results(text + lines, offset, text.match(resultsRE)[RES_NAME], offset + text.length), rest]
+  [new Results(text + lines, offset + 1, text.match(resultsRE)[RES_NAME], text.length + offset + 1), rest]
 
 parseKeyword = (text, offset, name, info, rest)-> [new Keyword(text, offset, name, info), rest]
 
 parseSrcBlock = (text, offset, info, rest)->
   end = rest.match srcEndRE
   otherSrcStart = rest.match srcStartRE
-  #if !end then throw new Error("No end for source block at offset: #{offset}, rest: #{rest}")
-  if !end
+  if !end || (otherSrcStart && otherSrcStart.index < end.index)
     line = text.match /^.*\n/
     if !line then line = [text]
     [new Meat(line[0]), text.substring(line[0].length) + rest]
-  else if otherSrcStart && otherSrcStart.index < end.index then throw new Error("No end for first sourcestart at offset: #{offset}")
   else
-    endLine = fullLine end, rest
+    endLine = fullLine end, rest.substring end.index
+    console.log "END: #{JSON.stringify endLine}"
     [new Source(text + rest.substring(0, end.index + endLine.length), offset, text.match(srcStartRE)[SRC_NAME], info, rest.substring(0, end.index), offset + text.length), rest.substring end.index + endLine.length]
 
 root.parseOrgMode = parseOrgMode
