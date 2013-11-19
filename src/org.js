@@ -492,7 +492,6 @@ misrepresented as being the original software.
       return [new Meat(line[0]), text.substring(line[0].length) + rest];
     } else {
       endLine = fullLine(end, rest.substring(end.index));
-      console.log("END: " + (JSON.stringify(endLine)));
       return [new Source(text + rest.substring(0, end.index + endLine.length), offset, text.match(srcStartRE)[SRC_NAME], info, rest.substring(0, end.index), offset + text.length), rest.substring(end.index + endLine.length)];
     }
   };
