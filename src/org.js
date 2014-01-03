@@ -25,7 +25,7 @@ misrepresented as being the original software.
 
 
 (function() {
-  var END_NAME, HL_LEVEL, HL_PRIORITY, HL_TAGS, HL_TODO, Headline, KW_BOILERPLATE, KW_INFO, KW_NAME, Keyword, Meat, Node, RES_NAME, Results, SRC_BOILERPLATE, SRC_INFO, SRC_NAME, Source, buildHeadlineRE, checkMatch, fullLine, headlineRE, keywordRE, matchLine, parseHeadline, parseKeyword, parseMeat, parseOrgChunk, parseOrgMode, parseResults, parseSrcBlock, parseTags, resultsLineRE, resultsRE, root, srcEndRE, srcStartRE, tagsRE, todoKeywords, todoRE,
+  var DRAWER_BOILERPLATE, DRAWER_NAME, END_NAME, HL_LEVEL, HL_PRIORITY, HL_TAGS, HL_TODO, Headline, KW_BOILERPLATE, KW_INFO, KW_NAME, Keyword, LIST_BOILERPLATE, LIST_CHECK, LIST_CHECK_VALUE, LIST_INFO, LIST_LEVEL, ListItem, Meat, Node, RES_NAME, Results, SRC_BOILERPLATE, SRC_INFO, SRC_NAME, SimpleMarkup, Source, buildHeadlineRE, checkMatch, drawerRE, endRE, fullLine, headlineRE, keywordRE, listContentOffset, listRE, markupText, markupTypes, matchLine, parseHeadline, parseKeyword, parseList, parseMeat, parseOrgChunk, parseOrgMode, parseRestOfMeat, parseResults, parseSrcBlock, parseTags, resultsLineRE, resultsRE, root, simpleRE, srcEndRE, srcStartRE, tagsRE, todoKeywords, todoRE,
     __hasProp = {}.hasOwnProperty,
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
@@ -34,7 +34,7 @@ misrepresented as being the original software.
   todoKeywords = ['TODO', 'DONE'];
 
   buildHeadlineRE = function() {
-    return new RegExp('^(\\*+) *(' + todoKeywords.join('|') + ')?(?: *(?:\\[#(A|B|C)\\]))?[^\n]*?(:[^:\n]*:)? *$', 'm');
+    return new RegExp('^(\\*+) *(' + todoKeywords.join('|') + ')?(?: *(?:\\[#(A|B|C)\\]))?[^\\n]*?((?:[\\w@%#]*:[\\w@%#:]*)? *)$', 'm');
   };
 
   HL_LEVEL = 1;
@@ -77,10 +77,32 @@ misrepresented as being the original software.
 
   resultsLineRE = /^([:|] .*)(?:\n|$)/i;
 
+  DRAWER_BOILERPLATE = 1;
+
+  DRAWER_NAME = 2;
+
+  drawerRE = /^( *:)([^\n:]*): *$/im;
+
+  endRE = /^ *:END: *$/im;
+
+  LIST_LEVEL = 1;
+
+  LIST_BOILERPLATE = 2;
+
+  LIST_CHECK = 3;
+
+  LIST_CHECK_VALUE = 4;
+
+  LIST_INFO = 5;
+
+  listRE = /^( *)(- *)(\[( |X)\] +)?(.*)$/m;
+
+  simpleRE = /\B(\*\w(.*\w)?\*|\/\w(.*\w)?\/|\+\w(.*\w)?\+|=\w(.*\w)?=|~\w(.*\w)?~)(\B|$)|\b_[^_]*\B_(\b|$)/;
+
   matchLine = function(txt) {
     return checkMatch(txt, srcStartRE, 'srcStart') || checkMatch(txt, srcEndRE, 'srcEnd') || checkMatch(txt, resultsRE, 'results') || checkMatch(txt, keywordRE, 'keyword') || checkMatch(txt, headlineRE, function(m) {
       return "headline-" + m[HL_LEVEL].length;
-    });
+    }) || checkMatch(txt, listRE, 'list');
   };
 
   checkMatch = function(txt, pat, result) {
@@ -98,7 +120,9 @@ misrepresented as being the original software.
   };
 
   Node = (function() {
-    function Node() {}
+    function Node() {
+      this.markup = markupText(this.text);
+    }
 
     Node.prototype.length = function() {
       return this.text.length;
@@ -146,6 +170,15 @@ misrepresented as being the original software.
       }
     };
 
+    Node.prototype.toString = function() {
+      return this.toJson();
+    };
+
+    Node.prototype.allTags = function() {
+      var _ref, _ref1;
+      return (_ref = (_ref1 = this.parent) != null ? _ref1.allTags() : void 0) != null ? _ref : [];
+    };
+
     return Node;
 
   })();
@@ -161,6 +194,7 @@ misrepresented as being the original software.
       this.tags = tags;
       this.children = children;
       this.offset = offset;
+      Headline.__super__.constructor.call(this);
     }
 
     Headline.prototype.block = true;
@@ -269,6 +303,30 @@ misrepresented as being the original software.
       return this;
     };
 
+    Headline.prototype.addTags = function(set) {
+      var tag, _i, _len, _ref;
+      _ref = parseTags(this.tags);
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        tag = _ref[_i];
+        set[tag] = true;
+      }
+      return set;
+    };
+
+    Headline.prototype.addAllTags = function() {
+      var _ref;
+      return this.addTags(((_ref = this.parent) != null ? _ref.addAllTags() : void 0) || {});
+    };
+
+    Headline.prototype.allTags = function() {
+      var k, _results;
+      _results = [];
+      for (k in this.addAllTags()) {
+        _results.push(k);
+      }
+      return _results;
+    };
+
     return Headline;
 
   })(Node);
@@ -279,6 +337,7 @@ misrepresented as being the original software.
     function Meat(text, offset) {
       this.text = text;
       this.offset = offset;
+      Meat.__super__.constructor.call(this);
     }
 
     Meat.prototype.lowerThan = function(l) {
@@ -299,6 +358,115 @@ misrepresented as being the original software.
 
   })(Node);
 
+  markupTypes = {
+    "*": 'bold',
+    "/": 'italic',
+    "_": 'underline',
+    "=": 'verbatim',
+    "~": 'code',
+    "+": 'strikethrough'
+  };
+
+  SimpleMarkup = (function(_super) {
+    __extends(SimpleMarkup, _super);
+
+    function SimpleMarkup(text, offset, children) {
+      this.text = text;
+      this.offset = offset;
+      this.children = children;
+      this.markupType = markupTypes[this.text[0]];
+    }
+
+    SimpleMarkup.prototype.type = 'simple';
+
+    SimpleMarkup.prototype.toJsonObject = function() {
+      return {
+        type: this.type,
+        text: this.text,
+        offset: this.offset,
+        markupType: this.markupType,
+        children: this.children
+      };
+    };
+
+    return SimpleMarkup;
+
+  })(Meat);
+
+  ListItem = (function(_super) {
+    __extends(ListItem, _super);
+
+    function ListItem(text, offset, contentOffset, level, checked, info) {
+      this.text = text;
+      this.offset = offset;
+      this.contentOffset = contentOffset;
+      this.level = level;
+      this.checked = checked;
+      this.info = info;
+      ListItem.__super__.constructor.call(this, this.text, this.offset);
+    }
+
+    ListItem.prototype.type = 'list';
+
+    ListItem.prototype.toJsonObject = function() {
+      var obj;
+      obj = {
+        type: this.type,
+        text: this.text,
+        level: this.level,
+        offset: this.offset,
+        contentOffset: this.contentOffset,
+        info: this.info
+      };
+      if (this.checked != null) {
+        obj.checked = this.checked;
+      }
+      return obj;
+    };
+
+    ListItem.prototype.getParent = function() {
+      var li;
+      if (this.level === 0) {
+        null;
+      }
+      li = this;
+      while (li = li.getPreviousListItem()) {
+        if (li.level < this.level) {
+          return li;
+        }
+      }
+    };
+
+    ListItem.prototype.getPreviousListItem = function() {
+      var prev;
+      prev = this.prev;
+      while (prev && !(prev instanceof Headline) && !(prev instanceof ListItem)) {
+        prev = prev.prev;
+      }
+      if (prev instanceof ListItem) {
+        return prev;
+      } else {
+        return null;
+      }
+    };
+
+    ListItem.prototype.getNextListItem = function() {
+      var next;
+      next = this.next;
+      while (next && !(next instanceof Headline) && !(next instanceof ListItem)) {
+        next = next.next;
+      }
+      if (next instanceof ListItem) {
+        return next;
+      } else {
+        return null;
+      }
+    };
+
+    return ListItem;
+
+  })(Meat);
+
   Keyword = (function(_super) {
     __extends(Keyword, _super);
 
@@ -307,6 +475,7 @@ misrepresented as being the original software.
       this.offset = offset;
       this.name = name;
       this.info = info;
+      Keyword.__super__.constructor.call(this, this.text, this.offset);
     }
 
     Keyword.prototype.block = true;
@@ -337,6 +506,7 @@ misrepresented as being the original software.
       this.info = info;
       this.content = content;
       this.contentPos = contentPos;
+      Source.__super__.constructor.call(this, this.text, this.offset, this.name, this.info);
     }
 
     Source.prototype.type = 'source';
@@ -365,6 +535,7 @@ misrepresented as being the original software.
       this.offset = offset;
       this.name = name;
       this.contentPos = contentPos;
+      Results.__super__.constructor.call(this, this.text, this.offset, this.name);
     }
 
     Results.prototype.type = 'results';
@@ -393,19 +564,24 @@ misrepresented as being the original software.
   };
 
   parseHeadline = function(text, offset, level, todo, priority, tags, rest, totalLen) {
-    var child, children, _ref;
+    var child, children, oldRest, _ref;
     children = [];
     while (true) {
+      oldRest = rest;
       _ref = parseOrgChunk(rest, totalLen - rest.length, level), child = _ref[0], rest = _ref[1];
       if (!child) {
         break;
       }
       if (child.lowerThan(level)) {
-        children.push(child);
+        while (child) {
+          children.push(child);
+          child = child.next;
+        }
+      } else {
+        rest = oldRest;
       }
     }
-    tags = tags ? tags.substring(1, tags.length - 1) : '';
-    return [new Headline(text, level, todo, priority, tags, children, offset), rest];
+    return [new Headline(text, level, todo, priority, tags || '', children, offset), rest];
   };
 
   parseTags = function(text) {
@@ -445,24 +621,55 @@ misrepresented as being the original software.
     }
   };
 
-  parseMeat = function(meat, offset, rest) {
-    var first, keyword, line, results, srcStart, _ref, _ref1, _ref2;
+  parseMeat = function(meat, offset, rest, middleOfLine) {
+    var child, children, first, inside, insideOffset, keyword, line, list, node, results, simple, srcStart, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
     srcStart = meat.match(srcStartRE);
     keyword = meat.match(keywordRE);
     results = meat.match(resultsRE);
-    if ((results != null ? results.index : void 0) === 0) {
-      line = fullLine(results, meat);
-      return parseResults(line, offset, meat.substring(line.length) + rest);
-    } else if ((srcStart != null ? srcStart.index : void 0) === 0) {
-      line = fullLine(srcStart, meat);
-      return parseSrcBlock(line, offset, srcStart[SRC_INFO], meat.substring(line.length) + rest);
-    } else if ((keyword != null ? keyword.index : void 0) === 0) {
-      line = fullLine(keyword, meat);
-      return parseKeyword(keyword, line, offset, keyword[KW_NAME], keyword[KW_INFO], meat.substring(line.length) + rest);
+    list = meat.match(listRE);
+    simple = meat.match(simpleRE);
+    if (!middleOfLine) {
+      if ((results != null ? results.index : void 0) === 0) {
+        line = fullLine(results, meat);
+        return parseResults(line, offset, meat.substring(line.length) + rest);
+      } else if ((srcStart != null ? srcStart.index : void 0) === 0) {
+        line = fullLine(srcStart, meat);
+        return parseSrcBlock(line, offset, srcStart[SRC_INFO], meat.substring(line.length) + rest);
+      } else if ((keyword != null ? keyword.index : void 0) === 0) {
+        line = fullLine(keyword, meat);
+        return parseKeyword(keyword, line, offset, keyword[KW_NAME], keyword[KW_INFO], meat.substring(line.length) + rest);
+      } else if ((list != null ? list.index : void 0) === 0) {
+        line = fullLine(list, meat);
+        return parseList(list, line, offset, (_ref = (_ref1 = list[LIST_LEVEL]) != null ? _ref1.length : void 0) != null ? _ref : 0, list[LIST_CHECK_VALUE], list[LIST_INFO], meat.substring(line.length) + rest);
+      }
+    }
+    if ((simple != null ? simple.index : void 0) === 0) {
+      inside = simple[0].substring(1, simple[0].length - 1);
+      insideOffset = offset + 1;
+      children = [];
+      while (inside) {
+        _ref2 = parseMeat(inside, insideOffset, '', true), child = _ref2[0], inside = _ref2[1];
+        children.push(child);
+        insideOffset = child.offset + child.text.length;
+      }
+      node = new SimpleMarkup(meat.substring(0, simple[0].length), offset, children);
     } else {
       first = meat.length + offset;
-      first = Math.min(first, (_ref = srcStart != null ? srcStart.index : void 0) != null ? _ref : first, (_ref1 = keyword != null ? keyword.index : void 0) != null ? _ref1 : first, (_ref2 = results != null ? results.index : void 0) != null ? _ref2 : first);
-      return [new Meat(meat.substring(0, first), offset), meat.substring(first) + rest];
+      first = Math.min(first, (_ref3 = srcStart != null ? srcStart.index : void 0) != null ? _ref3 : first, (_ref4 = keyword != null ? keyword.index : void 0) != null ? _ref4 : first, (_ref5 = results != null ? results.index : void 0) != null ? _ref5 : first, (_ref6 = list != null ? list.index : void 0) != null ? _ref6 : first, (_ref7 = simple != null ? simple.index : void 0) != null ? _ref7 : first);
+      node = new Meat(meat.substring(0, first), offset);
+    }
+    meat = meat.substring(node.text.length);
+    return parseRestOfMeat(node, meat, rest);
+  };
+
+  parseRestOfMeat = function(node, meat, rest) {
+    var node2, _ref;
+    if (meat && node.text[node.text.length - 1] !== '\n') {
+      _ref = parseMeat(meat, node.offset + node.text.length, rest, true), node2 = _ref[0], rest = _ref[1];
+      node.next = node2;
+      return [node, rest];
+    } else {
+      return [node, meat + rest];
     }
   };
 
@@ -496,6 +703,17 @@ misrepresented as being the original software.
     }
   };
 
+  parseList = function(match, text, offset, level, check, info, rest) {
+    return [new ListItem(text, offset, listContentOffset(match), level, check === 'X' || (check === ' ' ? false : null), info), rest];
+  };
+
+  listContentOffset = function(match) {
+    var _ref, _ref1;
+    return match[LIST_LEVEL].length + match[LIST_BOILERPLATE].length + ((_ref = (_ref1 = match[LIST_CHECK]) != null ? _ref1.length : void 0) != null ? _ref : 0);
+  };
+
+  markupText = function(text) {};
+
   root.parseOrgMode = parseOrgMode;
 
   root.Headline = Headline;
@@ -507,6 +725,10 @@ misrepresented as being the original software.
   root.Source = Source;
 
   root.Results = Results;
+
+  root.ListItem = ListItem;
+
+  root.SimpleMarkup = SimpleMarkup;
 
   root.headlineRE = headlineRE;
 

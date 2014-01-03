@@ -31,7 +31,7 @@ root = module.exports
 todoKeywords = ['TODO', 'DONE']
 
 buildHeadlineRE = ->
-  new RegExp '^(\\*+) *(' + todoKeywords.join('|') + ')?(?: *(?:\\[#(A|B|C)\\]))?[^\n]*?(:[^:\n]*:)? *$', 'm'
+  new RegExp '^(\\*+) *(' + todoKeywords.join('|') + ')?(?: *(?:\\[#(A|B|C)\\]))?[^\\n]*?((?:[\\w@%#]*:[\\w@%#:]*)? *)$', 'm'
 HL_LEVEL = 1
 HL_TODO = 2
 HL_PRIORITY = 3
@@ -52,13 +52,25 @@ srcEndRE = /^#\+(END_SRC)( *)$/im
 RES_NAME = 1
 resultsRE = /^#\+(RESULTS): *$/im
 resultsLineRE = /^([:|] .*)(?:\n|$)/i
+DRAWER_BOILERPLATE = 1
+DRAWER_NAME = 2
+drawerRE = /^( *:)([^\n:]*): *$/im
+endRE = /^ *:END: *$/im
+LIST_LEVEL = 1
+LIST_BOILERPLATE = 2
+LIST_CHECK = 3
+LIST_CHECK_VALUE = 4
+LIST_INFO = 5
+listRE = /^( *)(- *)(\[( |X)\] +)?(.*)$/m
+simpleRE = /\B(\*\w(.*\w)?\*|\/\w(.*\w)?\/|\+\w(.*\w)?\+|=\w(.*\w)?=|~\w(.*\w)?~)(\B|$)|\b_[^_]*\B_(\b|$)/
 
 matchLine = (txt)->
   checkMatch(txt, srcStartRE, 'srcStart') ||
   checkMatch(txt, srcEndRE, 'srcEnd') ||
   checkMatch(txt, resultsRE, 'results') ||
   checkMatch(txt, keywordRE, 'keyword') ||
-  checkMatch(txt, headlineRE, (m)-> "headline-#{m[HL_LEVEL].length}")
+  checkMatch(txt, headlineRE, (m)-> "headline-#{m[HL_LEVEL].length}") ||
+  checkMatch(txt, listRE, 'list')
 
 checkMatch = (txt, pat, result)->
   m = txt.match pat
@@ -67,6 +79,7 @@ checkMatch = (txt, pat, result)->
   else false
 
 class Node
+  constructor: -> @markup = markupText @text
   length: -> @text.length
   end: -> @offset + @text.length
   toJson: -> JSON.stringify @toJsonObject(), null, "  "
@@ -78,9 +91,11 @@ class Node
   next: null
   prev: null
   top: -> if !@parent then this else @parent.top()
+  toString: -> @toJson()
+  allTags: -> @parent?.allTags() ? []
 
 class Headline extends Node
-  constructor: (@text, @level, @todo, @priority, @tags, @children, @offset)->
+  constructor: (@text, @level, @todo, @priority, @tags, @children, @offset)-> super()
   block: true
   lowerThan: (l)-> l < @level
   length: -> @end() - @offset
@@ -121,9 +136,15 @@ class Headline extends Node
       if prev then prev.next = c
       prev = c
     this
+  addTags: (set)->
+    for tag in parseTags @tags
+      set[tag] = true
+    set
+  addAllTags: -> @addTags @parent?.addAllTags() || {}
+  allTags: -> k for k of @addAllTags()
 
 class Meat extends Node
-  constructor: (@text, @offset)->
+  constructor: (@text, @offset)-> super()
   lowerThan: (l)-> true
   type: 'meat'
   toJsonObject: ->
@@ -131,8 +152,56 @@ class Meat extends Node
     text: @text
     offset: @offset
 
+markupTypes =
+  "*": 'bold'
+  "/": 'italic'
+  "_": 'underline'
+  "=": 'verbatim'
+  "~": 'code'
+  "+": 'strikethrough'
+
+#* bold, / italic, _ underline, = verbatim, ~ code, + strikethrough
+class SimpleMarkup extends Meat
+  constructor: (@text, @offset, @children)-> @markupType = markupTypes[@text[0]]
+  type: 'simple'
+  toJsonObject: ->
+    type: @type
+    text: @text
+    offset: @offset
+    markupType: @markupType
+    children: @children
+
+class ListItem extends Meat
+  constructor: (@text, @offset, @contentOffset, @level, @checked, @info)-> super @text, @offset
+  type: 'list'
+  toJsonObject: ->
+    obj =
+      type: @type
+      text: @text
+      level: @level
+      offset: @offset
+      contentOffset: @contentOffset
+      info: @info
+    if @checked? then obj.checked = @checked
+    obj
+  getParent: ->
+    if @level == 0 then null
+    li = @
+    while li = li.getPreviousListItem()
+      if li.level < @level then return li
+  getPreviousListItem: ->
+    prev = @prev
+    while prev && !(prev instanceof Headline) && !(prev instanceof ListItem)
+      prev = prev.prev
+    if prev instanceof ListItem then prev else null
+  getNextListItem: ->
+    next = @next
+    while next && !(next instanceof Headline) && !(next instanceof ListItem)
+      next = next.next
+    if next instanceof ListItem then next else null
+
 class Keyword extends Meat
-  constructor: (@text, @offset, @name, @info)->
+  constructor: (@text, @offset, @name, @info)-> super @text, @offset
   block: true
   type: 'keyword'
   toJsonObject: ->
@@ -143,7 +212,7 @@ class Keyword extends Meat
     info: @info
 
 class Source extends Keyword
-  constructor: (@text, @offset, @name, @info, @content, @contentPos)->
+  constructor: (@text, @offset, @name, @info, @content, @contentPos)-> super @text, @offset, @name, @info
   type: 'source'
   toJsonObject: ->
     type: @type
@@ -155,7 +224,7 @@ class Source extends Keyword
     contentPos: @contentPos
 
 class Results extends Keyword
-  constructor: (@text, @offset, @name, @contentPos)->
+  constructor: (@text, @offset, @name, @contentPos)->  super @text, @offset, @name
   type: 'results'
   toJsonObject: ->
     type: @type
@@ -175,12 +244,15 @@ parseOrgMode = (text)->
 parseHeadline = (text, offset, level, todo, priority, tags, rest, totalLen)->
   children = []
   while true
+    oldRest = rest
     [child, rest] = parseOrgChunk rest, totalLen - rest.length, level
     if !child then break
     if child.lowerThan level
-      children.push child
-  tags = if tags then tags.substring 1, tags.length - 1 else ''
-  [new Headline(text, level, todo, priority, tags, children, offset), rest]
+      while child
+        children.push child
+        child = child.next
+    else rest = oldRest
+  [new Headline(text, level, todo, priority, tags || '', children, offset), rest]
 
 parseTags = (text)->
   tagArray = []
@@ -203,23 +275,47 @@ parseOrgChunk = (text, offset, level)->
       meat = text.substring 0, if m then m.index else text.length
       parseMeat meat, offset, text.substring meat.length
 
-parseMeat = (meat, offset, rest)->
+parseMeat = (meat, offset, rest, middleOfLine)->
   srcStart = meat.match srcStartRE
   keyword = meat.match keywordRE
   results = meat.match resultsRE
-  if results?.index == 0
-    line = fullLine results, meat
-    parseResults line, offset, meat.substring(line.length) + rest
-  else if srcStart?.index == 0
-    line = fullLine srcStart, meat
-    parseSrcBlock line, offset, srcStart[SRC_INFO], meat.substring(line.length) + rest
-  else if keyword?.index == 0
-    line = fullLine keyword, meat
-    parseKeyword keyword, line, offset, keyword[KW_NAME], keyword[KW_INFO], meat.substring(line.length) + rest
+  list = meat.match listRE
+  simple = meat.match simpleRE
+  if !middleOfLine
+    if results?.index == 0
+      line = fullLine results, meat
+      return parseResults line, offset, meat.substring(line.length) + rest
+    else if srcStart?.index == 0
+      line = fullLine srcStart, meat
+      return parseSrcBlock line, offset, srcStart[SRC_INFO], meat.substring(line.length) + rest
+    else if keyword?.index == 0
+      line = fullLine keyword, meat
+      return parseKeyword keyword, line, offset, keyword[KW_NAME], keyword[KW_INFO], meat.substring(line.length) + rest
+    else if list?.index == 0
+      line = fullLine list, meat
+      return parseList list, line, offset, list[LIST_LEVEL]?.length ? 0, list[LIST_CHECK_VALUE], list[LIST_INFO], meat.substring(line.length) + rest
+  if simple?.index == 0
+    inside = simple[0].substring 1, simple[0].length - 1
+    insideOffset = offset + 1
+    children = []
+    while inside
+      [child, inside] = parseMeat inside, insideOffset, '', true
+      children.push child
+      insideOffset = child.offset + child.text.length
+    node = new SimpleMarkup(meat.substring(0, simple[0].length), offset, children)
   else
     first = meat.length + offset
-    first = Math.min(first, srcStart?.index ? first, keyword?.index ? first, results?.index ? first)
-    [new Meat(meat.substring(0, first), offset), meat.substring(first) + rest]
+    first = Math.min(first, srcStart?.index ? first, keyword?.index ? first, results?.index ? first, list?.index ? first, simple?.index ? first)
+    node = new Meat(meat.substring(0, first), offset)
+  meat = meat.substring node.text.length
+  parseRestOfMeat node, meat, rest
+
+parseRestOfMeat = (node, meat, rest)->
+  if meat && node.text[node.text.length - 1] != '\n'
+    [node2, rest] = parseMeat meat, node.offset + node.text.length, rest, true
+    node.next = node2
+    [node, rest]
+  else [node, meat + rest]
 
 parseResults = (text, offset, rest)->
   oldRest = rest
@@ -242,12 +338,22 @@ parseSrcBlock = (text, offset, info, rest)->
     endLine = fullLine end, rest.substring end.index
     [new Source(text + rest.substring(0, end.index + endLine.length), offset, text.match(srcStartRE)[SRC_NAME], info, rest.substring(0, end.index), offset + text.length), rest.substring end.index + endLine.length]
 
+parseList = (match, text, offset, level, check, info, rest)->
+  [new ListItem(text, offset, listContentOffset(match), level, check == 'X' || (if check == ' ' then false else null), info), rest]
+
+listContentOffset = (match)->
+  match[LIST_LEVEL].length + match[LIST_BOILERPLATE].length + (match[LIST_CHECK]?.length ? 0)
+
+markupText = (text)->
+
 root.parseOrgMode = parseOrgMode
 root.Headline = Headline
 root.Meat = Meat
 root.Keyword = Keyword
 root.Source = Source
 root.Results = Results
+root.ListItem = ListItem
+root.SimpleMarkup = SimpleMarkup
 root.headlineRE = headlineRE
 root.HL_TAGS = HL_TAGS
 root.parseTags = parseTags
