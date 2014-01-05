@@ -1,1 +1,13 @@
 * This is a JavaScript orgmode file parser
+Each node contains all of its own text in the text property.
+
+Node.text: the text local to the node (not the children)
+Node.offset: the offset of the node's text in the file
+Node.allText(): all of the text for the node and its descendants
+Node.toJson(): a JSON representation of the node
+Node.toString(): same as toJson()
+Node.allTags(): all of the inherited tags for a node
+Node.next: the next sibling node
+Node.prev: the previous sibling node
+Node.parent: the parent node
+Node.top(): the top node

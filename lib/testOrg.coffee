@@ -34,7 +34,11 @@ blah blah
 
 * TODO [#B] test [2/2]                                                       :duh:
 test *bold* word /italic/ fred _underline_
+link [[duh]] [[dur][description *bold* +strike+ florp]]
 duh
+#+BEGIN_HTML
+blah blah blah
+#+END_HTML
 * Blorfl
 """
 

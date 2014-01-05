@@ -6,7 +6,7 @@
 
   assert = require('assert');
 
-  test = "|  a |  b | a + b |\n|  4 | 34 |    38 |\n| 21 | 31 |    52 |\n|  5 |  8 |    13 |\n#+TBLFM: $3=$1+$2\n\n* thing :a\n  1. test\n  2. two\n** subthing :b:\n:RESULTS:\ntest\nblah blah\n:END:\n  3. three\n\n#+begin_src javascript\n  console.log('duh')\n  console.log('dur')\n#+end_sr\n\n- [ ] one\n  - [X] two\n- duh\n\n* TODO [#B] test [2/2]                                                       :duh:\ntest *bold* word /italic/ fred _underline_\nduh\n* Blorfl";
+  test = "|  a |  b | a + b |\n|  4 | 34 |    38 |\n| 21 | 31 |    52 |\n|  5 |  8 |    13 |\n#+TBLFM: $3=$1+$2\n\n* thing :a\n  1. test\n  2. two\n** subthing :b:\n:RESULTS:\ntest\nblah blah\n:END:\n  3. three\n\n#+begin_src javascript\n  console.log('duh')\n  console.log('dur')\n#+end_sr\n\n- [ ] one\n  - [X] two\n- duh\n\n* TODO [#B] test [2/2]                                                       :duh:\ntest *bold* word /italic/ fred _underline_\nlink [[duh]] [[dur][description *bold* +strike+ florp]]\nduh\n#+BEGIN_HTML\nblah blah blah\n#+END_HTML\n* Blorfl";
 
   node = parseOrgMode(test);
 
