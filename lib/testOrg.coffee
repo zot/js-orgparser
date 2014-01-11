@@ -43,6 +43,10 @@ blah blah blah
 #+END_HTML
 * Blorfl
 - normal *bold* */bold italic/*
+:EXPECTED:
+hello
+there
+:END:
 """
 
 #console.log "TEXT: #{parseOrgMode('duh').toJson()}"
