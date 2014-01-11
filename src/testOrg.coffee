@@ -31,15 +31,18 @@ blah blah
 - [ ] one
   - [X] two
 - duh
+- */dur/*
 
 * TODO [#B] test [2/2]                                                       :duh:
 test *bold* word /italic/ fred _underline_
+markup */bold italic/*
 link [[duh]] [[dur][description *bold* +strike+ florp]]
 duh
 #+BEGIN_HTML
 blah blah blah
 #+END_HTML
 * Blorfl
+- normal *bold* */bold italic/*
 """
 
 #console.log "TEXT: #{parseOrgMode('duh').toJson()}"
