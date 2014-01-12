@@ -17,10 +17,9 @@ test = """
   1. test
   2. two
 ** subthing :b:
-:RESULTS:
-test
-blah blah
-:END:
+#+RESULTS:
+: test
+: blah blah
   3. three
 
 #+begin_src javascript
@@ -47,6 +46,8 @@ blah blah blah
 hello
 there
 :END:
+
+
 """
 
 #console.log "TEXT: #{parseOrgMode('duh').toJson()}"
