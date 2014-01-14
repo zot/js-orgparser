@@ -326,9 +326,10 @@ parseOrgMode = (text, offset)->
 
 parseHeadline = (text, offset, level, todo, priority, tags, rest, totalLen)->
   children = []
+  originalRest = rest
   while true
     oldRest = rest
-    [child, rest] = parseOrgChunk rest, totalLen - rest.length, level
+    [child, rest] = parseOrgChunk rest, originalRest.length - rest.length + offset, level
     if !child then break
     if child.lowerThan level
       while child
@@ -359,15 +360,15 @@ parseOrgChunk = (text, offset, level)->
       parseMeat meat, offset, text.substring meat.length
 
 parseMeat = (meat, offset, rest, middleOfLine)->
-  srcStart = meat.match srcStartRE
-  keyword = meat.match keywordRE
-  results = meat.match resultsRE
-  list = meat.match listRE
   simple = meat.match simpleRE
   link = meat.match linkRE
-  htmlStart = meat.match htmlStartRE
-  drawer = meat.match drawerRE
   if !middleOfLine
+    results = meat.match resultsRE
+    srcStart = meat.match srcStartRE
+    keyword = meat.match keywordRE
+    list = meat.match listRE
+    htmlStart = meat.match htmlStartRE
+    drawer = meat.match drawerRE
     if results?.index == 0
       line = fullLine results, meat
       return parseResults line, offset, meat.substring(line.length) + rest
