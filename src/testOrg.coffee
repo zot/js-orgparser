@@ -46,7 +46,10 @@ blah blah blah
 hello
 there
 :END:
-
+:PROPERTIES:
+:a: 1
+:b:    2
+:END:
 
 """
 

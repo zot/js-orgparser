@@ -6,7 +6,7 @@
 
   assert = require('assert');
 
-  test = "|  a |  b | a + b |\n|  4 | 34 |    38 |\n| 21 | 31 |    52 |\n|  5 |  8 |    13 |\n#+TBLFM: $3=$1+$2\n\n* thing :a\n  1. test\n  2. two\n** subthing :b:\n#+RESULTS:\n: test\n: blah blah\n  3. three\n\n#+begin_src javascript\n  console.log('duh')\n  console.log('dur')\n#+end_sr\n\n- [ ] one\n  - [X] two\n- duh\n- */dur/*\n\n* TODO [#B] test [2/2]                                                       :duh:\ntest *bold* word /italic/ fred _underline_\nmarkup */bold italic/*\nlink [[duh]] [[dur][description *bold* +strike+ florp]]\nduh\n#+BEGIN_HTML\nblah blah blah\n#+END_HTML\n* Blorfl\n- normal *bold* */bold italic/*\n:EXPECTED:\nhello\nthere\n:END:\n\n";
+  test = "|  a |  b | a + b |\n|  4 | 34 |    38 |\n| 21 | 31 |    52 |\n|  5 |  8 |    13 |\n#+TBLFM: $3=$1+$2\n\n* thing :a\n  1. test\n  2. two\n** subthing :b:\n#+RESULTS:\n: test\n: blah blah\n  3. three\n\n#+begin_src javascript\n  console.log('duh')\n  console.log('dur')\n#+end_sr\n\n- [ ] one\n  - [X] two\n- duh\n- */dur/*\n\n* TODO [#B] test [2/2]                                                       :duh:\ntest *bold* word /italic/ fred _underline_\nmarkup */bold italic/*\nlink [[duh]] [[dur][description *bold* +strike+ florp]]\nduh\n#+BEGIN_HTML\nblah blah blah\n#+END_HTML\n* Blorfl\n- normal *bold* */bold italic/*\n:EXPECTED:\nhello\nthere\n:END:\n:PROPERTIES:\n:a: 1\n:b:    2\n:END:\n";
 
   node = parseOrgMode(test);
 
