@@ -2,11 +2,10 @@ SRC=org testOrg
 COFFEE=$(SRC:%=src/%.coffee)
 JS=$(SRC:%=lib/%.js)
 
-all: $(JS) tests
+all: alljs tests
 
-$(JS): $(COFFEE)
-	(cd src; coffee -m -c $(?:src/%=%))
-	cp $(?:%.coffee=%.*) lib
+alljs:
+	coffee --compile --output lib src
 
 tests:
-	node lib/testOrg
+	#node lib/testOrg

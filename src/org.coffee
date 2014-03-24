@@ -74,7 +74,7 @@ HTML_START_NAME = 1
 htmlStartRE = /^#\+(BEGIN_HTML) *$/im
 htmlEndRE = /^#\+END_HTML *$/im
 ATTR_NAME = 1
-attrHtmlRE = /^#\+(ATTR_HTML): *$/im
+attrHtmlRE = /^#\+(ATTR_HTML: *)([^\n]*)$/im
 attrHtmlLineRE = /^([:|] .*)(?:\n|$)/i
 imagePathRE = /\.(png|jpg|jpeg|gif|svg|tiff|bmp)$/i
 
@@ -393,6 +393,7 @@ parseMeat = (meat, offset, rest, middleOfLine)->
       return parseResults line, offset, meat.substring(line.length) + rest
     else if attr?.index == 0
       line = fullLine attr, meat
+      console.log "PARSE ATTR!!!!"
       return parseAttr line, offset, meat.substring(line.length) + rest
     else if srcStart?.index == 0
       line = fullLine srcStart, meat
@@ -455,7 +456,7 @@ parseResults = (text, offset, rest)->
 
 parseAttr = (text, offset, rest)->
   oldRest = rest
-  while m = rest.match attrHrmlLineRE
+  while m = rest.match attrHtmlLineRE
     rest = rest.substring m[0].length
   lines = oldRest.substring 0, oldRest.length - rest.length
   [new AttrHtml(text + lines, offset, text.match(attrHtmlRE)[ATTR_NAME], text.length), rest]
