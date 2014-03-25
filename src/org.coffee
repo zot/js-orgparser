@@ -76,6 +76,7 @@ htmlEndRE = /^#\+END_HTML *$/im
 ATTR_NAME = 1
 attrHtmlRE = /^#\+(ATTR_HTML: *)([^\n]*)$/im
 attrHtmlLineRE = /^([:|] .*)(?:\n|$)/i
+splitAttrRE = /\s*(:[-\w]+)\s*/i
 imagePathRE = /\.(png|jpg|jpeg|gif|svg|tiff|bmp)$/i
 
 matchLine = (txt)->
@@ -315,7 +316,7 @@ class Results extends Keyword
     contentPos: @contentPos
 
 class AttrHtml extends Keyword
-  constructor: (@text, @offset, @name, @contentPos)->  super @text, @offset, @name
+  constructor: (@text, @offset, @name, @contentPos, @props)->  super @text, @offset, @name
   type: 'attr'
   toJsonObject: ->
     type: @type
@@ -323,6 +324,7 @@ class AttrHtml extends Keyword
     offset: @offset
     name: @name
     contentPos: @contentPos
+    props: @props
 
 nextOrgNode = (node)->
   up = false
@@ -393,7 +395,6 @@ parseMeat = (meat, offset, rest, middleOfLine)->
       return parseResults line, offset, meat.substring(line.length) + rest
     else if attr?.index == 0
       line = fullLine attr, meat
-      console.log "PARSE ATTR!!!!"
       return parseAttr line, offset, meat.substring(line.length) + rest
     else if srcStart?.index == 0
       line = fullLine srcStart, meat
@@ -456,10 +457,13 @@ parseResults = (text, offset, rest)->
 
 parseAttr = (text, offset, rest)->
   oldRest = rest
-  while m = rest.match attrHtmlLineRE
-    rest = rest.substring m[0].length
-  lines = oldRest.substring 0, oldRest.length - rest.length
-  [new AttrHtml(text + lines, offset, text.match(attrHtmlRE)[ATTR_NAME], text.length), rest]
+  console.log "PARSE ATTR!!!!"
+  props = text.match(attrHtmlRE)[2].split(splitAttrRE)
+  props.splice(0, 2)
+  console.log "text: " + text
+  console.log "props: " + props
+  #console.log "rest: " + rest
+  [new AttrHtml(text, offset, text.match(attrHtmlRE)[ATTR_NAME], text.length, props), rest]
 
 parseDrawer = (text, name, offset, end, rest)->
   pos = end.index + (fullLine end, rest).length
